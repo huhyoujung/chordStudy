@@ -145,10 +145,9 @@ with col2:
         if include_inversions:
             chord_notes = generate_inversions(st.session_state.chord_notes)
             frequencies = [note_to_freq(note) for note in chord_notes]
-            audio = generate_arpeggio_audio(frequencies, bpm)  # 여기서 bpm 사용
+            audio = generate_arpeggio_audio(frequencies, bpm)
         else:
-            chord_duration_ms = int(60000 / bpm)  # 여기서 bpm 사용
-            audio = generate_chord_audio(frequencies, chord_duration_ms)
+            audio = generate_chord_audio(frequencies)
         
         st.markdown(get_audio_html(audio), unsafe_allow_html=True)
 
