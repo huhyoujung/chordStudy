@@ -1,8 +1,10 @@
 import random
-import numpy as np
-import sounddevice as sd
 import streamlit as st
 import time
+from pydub import AudioSegment
+from pydub.generators import Sine
+from io import BytesIO
+import base64
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 chord_types = ['Major', 'minor', 'sus4', 'aug', 'dim', 'Major7', 'minor7', 'Dominant7', 'Diminished7', 'Half Diminished7']
@@ -52,33 +54,31 @@ def raise_octave(note):
 
 def note_to_freq(note):
     notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    note_name = ''.join([c for c in note if not c.isdigit()])
-    octave = int(''.join([c for c in note if c.isdigit()]))
-    base_freq = 261.6256  # C4의 주수
-    note_index = notes.index(note_name)
-    c_index = notes.index('C')
-    half_steps = note_index - c_index + (octave - 4) * 12
-    freq = base_freq * (2 ** (half_steps / 12))
-    return freq
+    octave = int(note[-1])
+    note_name = note[:-1]
+    semitones = notes.index(note_name)
+    return 440 * (2 ** ((semitones - 9) / 12)) * (2 ** (octave - 4))
 
-def play_chord(notes, duration=0.5, sample_rate=44100):
-    bpm = st.session_state.bpm
-    duration = 60 / bpm  # BPM에 따라 duration 조정
-    t = np.linspace(0, duration, int(sample_rate * duration), False)
-    chord = np.zeros_like(t)
-    for note in notes:
-        freq = note_to_freq(note)
-        chord += np.sin(2 * np.pi * freq * t)
-    chord = chord / np.max(np.abs(chord))
-    sd.play(chord, sample_rate)
-    sd.wait()
+def generate_chord_audio(frequencies, duration_ms=500):
+    audio = AudioSegment.silent(duration=duration_ms)
+    for freq in frequencies:
+        sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
+        audio = audio.overlay(sine_wave)
+    return audio
 
-def play_arpeggio(notes, duration=0.2, sample_rate=44100):
-    bpm = st.session_state.bpm
-    note_duration = 60 / bpm / 4  # 16분음표 기준으로 duration 조정
-    for note in notes:
-        play_chord([note], note_duration, sample_rate)
-        time.sleep(note_duration * 0.9)  # 음표 사이에 짧은 간격 추가 (90% of note duration)
+def generate_arpeggio_audio(frequencies, bpm):
+    note_duration_ms = int(60000 / bpm / 4)  # 16분음표 기준
+    audio = AudioSegment.silent(duration=0)
+    for freq in frequencies:
+        sine_wave = Sine(freq).to_audio_segment(duration=note_duration_ms)
+        audio += sine_wave
+    return audio
+
+def get_audio_html(audio):
+    buffer = BytesIO()
+    audio.export(buffer, format="wav")
+    b64 = base64.b64encode(buffer.getvalue()).decode()
+    return f'<audio autoplay><source src="data:audio/wav;base64,{b64}" type="audio/wav"></audio>'
 
 # 세션 상태 초기화
 if 'key' not in st.session_state:
@@ -118,7 +118,7 @@ st.markdown("""
 col1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
-    # 새로고침 버튼
+    # 새로고 버튼
     if st.button('🔄', key='refresh'):
         st.session_state.key = random.choice(keys)
         st.session_state.chord_type = random.choice(chord_types)
@@ -137,19 +137,20 @@ with col2:
     include_inversions = st.checkbox('Inversion', key='include_inversions')
 
     # BPM 슬라이더 (더 작게 구현, 라벨 제거)
-    st.slider('BPM', 60, 240, st.session_state.bpm, key='bpm', format="%d", step=1, label_visibility='collapsed')
+    bpm = st.slider('BPM', 60, 240, st.session_state.bpm, key='bpm', format="%d", step=1, label_visibility='collapsed')
 
     # 코드 재생 버튼
     if st.button('Play Chord', key='play_chord'):
+        frequencies = [note_to_freq(note) for note in st.session_state.chord_notes]
         if include_inversions:
             chord_notes = generate_inversions(st.session_state.chord_notes)
-            play_arpeggio(chord_notes)
+            frequencies = [note_to_freq(note) for note in chord_notes]
+            audio = generate_arpeggio_audio(frequencies, bpm)  # 여기서 bpm 사용
         else:
-            play_chord(st.session_state.chord_notes)
-
-    # 약간의 공간 추가
-    st.write("")
-    st.write("")
+            chord_duration_ms = int(60000 / bpm)  # 여기서 bpm 사용
+            audio = generate_chord_audio(frequencies, chord_duration_ms)
+        
+        st.markdown(get_audio_html(audio), unsafe_allow_html=True)
 
     # 구성음 확인 토글
     show_notes = st.toggle('Show Notes', key='toggle_show_notes')
