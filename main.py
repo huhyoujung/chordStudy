@@ -1,24 +1,33 @@
-import random
 import streamlit as st
+import base64
+import random
 import numpy as np
 import io
-import base64
 import wave
 
-# 테마 설정 (타이틀 변경)
-st.set_page_config(page_title="ChordPlay", layout="wide")
+# 이미지를 base64로 인코딩하는 함수
+def img_to_base64(img_path):
+    with open(img_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode('utf-8')
+
+# 로고 이미지를 base64로 인코딩
+logo_base64 = img_to_base64("logo.png")
+
+# 파비콘 설정
+favicon_base64 = img_to_base64("logo.png")
+st.set_page_config(page_title="ChordPlay", page_icon=f"data:image/png;base64,{favicon_base64}", layout="wide")
 
 # CSS를 사용하여 폰트와 배경색 설정
-st.markdown("""
+st.markdown(f"""
     <style>
     @import url('https://timesnewerroman.com/TNR.css');
-    .stApp {
+    .stApp {{
         background-color: white;
-    }
-    body, .stButton>button, .stTextInput>div>div>input, .stSelectbox, .stSlider, p, h1, h2, h3, h4, h5, h6 {
+    }}
+    body, .stButton>button, .stTextInput>div>div>input, .stSelectbox, .stSlider, p, h1, h2, h3, h4, h5, h6 {{
         font-family: 'Times Newer Roman', Times, serif !important;
-    }
-    .key-style {
+    }}
+    .key-style {{
         border: 2px solid black;
         color: black;
         background-color: white;
@@ -29,8 +38,8 @@ st.markdown("""
         font-weight: bold;
         font-family: 'Times Newer Roman', Times, serif !important;
         margin-right: 10px;
-    }
-    .chord-type-style {
+    }}
+    .chord-type-style {{
         color: white;
         background-color: black;
         padding: 10px 20px;
@@ -40,32 +49,28 @@ st.markdown("""
         font-weight: bold;
         font-family: 'Times Newer Roman', Times, serif !important;
         margin-left: 10px;
-    }
-    .center-container {
+    }}
+    .center-container {{
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 20px;  /* 간격 추가 */
-    }
-    /* BPM 슬라이더 숫자 색상 변경 */
-    .stSlider [data-baseweb="slider"] div[role="slider"] div {
+        margin-bottom: 20px;
+    }}
+    .stSlider [data-baseweb="slider"] div[role="slider"] div {{
         color: black !important;
-    }
-    /* Play 버튼 호버 시 테두리 색상 변경 */
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         border-color: black !important;
         color: black !important;
-    }
-    /* Show Notes 토글 색상 변경 */
-    .stCheckbox [data-baseweb="checkbox"] div[data-checked="true"] {
+    }}
+    .stCheckbox [data-baseweb="checkbox"] div[data-checked="true"] {{
         background-color: black !important;
-    }
-    .stCheckbox [data-baseweb="checkbox"] div[data-focused="true"] {
+    }}
+    .stCheckbox [data-baseweb="checkbox"] div[data-focused="true"] {{
         border-color: black !important;
         box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2) !important;
-    }
-    /* 저작권 정보 스타일 */
-    .copyright {
+    }}
+    .copyright {{
         position: fixed;
         left: 0;
         bottom: 10px;
@@ -74,8 +79,22 @@ st.markdown("""
         font-size: 12px;
         color: #888;
         font-family: 'Times Newer Roman', Times, serif !important;
-    }
+    }}
+    .refresh-button-container {{
+        display: flex;
+        justify-content: center;
+        margin-bottom: 10px;
+    }}
+    .logo-img {{
+        display: block;
+        margin: 0 auto;
+        width: 100px;
+        height: auto;
+    }}
     </style>
+    
+    <!-- 로고 이미지 추가 -->
+    <img src="data:image/png;base64,{logo_base64}" class="logo-img">
     """, unsafe_allow_html=True)
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -161,36 +180,16 @@ def get_audio_base64(audio_data, sample_rate=44100):
 
 # 세션 상태 초기화
 if 'key' not in st.session_state:
-    st.session_state.key = random.choice(keys)
-    st.session_state.chord_type = random.choice(chord_types)
-    st.session_state.chord_notes = generate_correct_answer(st.session_state.key, st.session_state.chord_type)
+    st.session_state.key = None  # 또는 기본값 설정
+
+if 'chord_type' not in st.session_state:
+    st.session_state.chord_type = None  # 또는 기본값 설정
 
 if 'bpm' not in st.session_state:
     st.session_state.bpm = 120
 
-# Streamlit 앱 UI (헤더 텍스트 변 및 크기 축소)
+# Streamlit 앱 UI (헤더 텍스트 변경 및 크기 축소)
 st.markdown("<h3 style='text-align: center; font-family: \"Times Newer Roman\", Times, serif;'>ChordPlay</h3>", unsafe_allow_html=True)
-
-# 태그 스타일 CSS 추가
-st.markdown("""
-<style>
-.tag {
-    display: inline-block;
-    padding: 5px 10px;
-    margin: 5px;
-    border-radius: 20px;
-    font-size: 18px;
-    font-weight: bold;
-    color: white;
-}
-.key-tag {
-    background-color: #007bff;
-}
-.chord-tag {
-    background-color: #28a745;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # 전체 레이아웃을 3개의 열로 나누어 중앙 정렬
 col1, col2, col3 = st.columns([1, 2, 1])
