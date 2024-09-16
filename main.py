@@ -21,12 +21,48 @@ st.set_page_config(page_title="ChordPlay", page_icon=f"data:image/png;base64,{fa
 st.markdown(f"""
     <style>
     @import url('https://timesnewerroman.com/TNR.css');
+
+    /* 전체 앱에 라이트 모드 스타일 적용 */
     .stApp {{
         background-color: white;
+        color: black;
     }}
-    body, .stButton>button, .stTextInput>div>div>input, .stSelectbox, .stSlider, p, h1, h2, h3, h4, h5, h6 {{
-        font-family: 'Times Newer Roman', Times, serif !important;
+
+    /* 기본 폰트 설정 */
+    body, .stButton>button, .stTextInput>div>div>input, .stSelectbox, p, h1, h2, h3, h4, h5, h6 {{
+        font-family: 'Times Newer Roman', Times, serif;
+        color: black;
     }}
+
+    /* 버튼 스타일 */
+    .stButton>button {{
+        background-color: white;
+        color: black;
+        border-color: black;
+    }}
+
+    .stButton>button:hover {{
+        background-color: #f0f0f0;
+    }}
+
+    /* 체크박스 스타일 */
+    .stCheckbox {{
+        color: black;
+    }}
+    .stCheckbox [data-baseweb="checkbox"] {{
+        background-color: white;
+        border-color: black;
+    }}
+    .stCheckbox [data-baseweb="checkbox"] div[data-checked="true"] {{
+        background-color: black;
+    }}
+
+    /* 슬라이더 스타일 */
+    .stSlider [data-baseweb="slider"] div[role="slider"] {{
+        background-color: black;
+    }}
+
+    /* 키 스타일 */
     .key-style {{
         border: 2px solid black;
         color: black;
@@ -36,9 +72,10 @@ st.markdown(f"""
         display: inline-block;
         font-size: 24px;
         font-weight: bold;
-        font-family: 'Times Newer Roman', Times, serif !important;
         margin-right: 10px;
     }}
+
+    /* 코드 타입 스타일 */
     .chord-type-style {{
         color: white;
         background-color: black;
@@ -47,29 +84,18 @@ st.markdown(f"""
         display: inline-block;
         font-size: 24px;
         font-weight: bold;
-        font-family: 'Times Newer Roman', Times, serif !important;
         margin-left: 10px;
     }}
+
+    /* 중앙 정렬 컨테이너 */
     .center-container {{
         display: flex;
         justify-content: center;
         align-items: center;
         margin-bottom: 20px;
     }}
-    .stSlider [data-baseweb="slider"] div[role="slider"] div {{
-        color: black !important;
-    }}
-    .stButton > button:hover {{
-        border-color: black !important;
-        color: black !important;
-    }}
-    .stCheckbox [data-baseweb="checkbox"] div[data-checked="true"] {{
-        background-color: black !important;
-    }}
-    .stCheckbox [data-baseweb="checkbox"] div[data-focused="true"] {{
-        border-color: black !important;
-        box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2) !important;
-    }}
+
+    /* 저작권 정보 */
     .copyright {{
         position: fixed;
         left: 0;
@@ -78,18 +104,26 @@ st.markdown(f"""
         text-align: center;
         font-size: 12px;
         color: #888;
-        font-family: 'Times Newer Roman', Times, serif !important;
     }}
+
+    /* 새로고침 버튼 컨테이너 */
     .refresh-button-container {{
         display: flex;
         justify-content: center;
         margin-bottom: 10px;
     }}
+
+    /* 로고 이미지 */
     .logo-img {{
         display: block;
         margin: 0 auto;
         width: 100px;
         height: auto;
+    }}
+
+    /* 다크모드 전환 버튼 숨기기 */
+    [data-testid="stToolbar"] {{
+        display: none;
     }}
     </style>
     
@@ -160,7 +194,7 @@ def create_chord_audio(frequencies, duration=1, sample_rate=44100):
     return (chord * 32767).astype(np.int16)
 
 def create_arpeggio_audio(frequencies, bpm, sample_rate=44100):
-    note_duration = 60 / bpm / 4  # 16분음표 기준
+    note_duration = 60 / bpm / 2  # 8분음표 기준 (이전의 2배)
     arpeggio = np.array([], dtype=np.int16)
     for freq in frequencies:
         note = create_sine_wave(freq, note_duration, sample_rate)
@@ -180,10 +214,13 @@ def get_audio_base64(audio_data, sample_rate=44100):
 
 # 세션 상태 초기화
 if 'key' not in st.session_state:
-    st.session_state.key = None  # 또는 기본값 설정
+    st.session_state.key = random.choice(keys)
 
 if 'chord_type' not in st.session_state:
-    st.session_state.chord_type = None  # 또는 기본값 설정
+    st.session_state.chord_type = random.choice(chord_types)
+
+if 'chord_notes' not in st.session_state:
+    st.session_state.chord_notes = generate_correct_answer(st.session_state.key, st.session_state.chord_type)
 
 if 'bpm' not in st.session_state:
     st.session_state.bpm = 120
@@ -216,7 +253,8 @@ with col2:
     include_inversions = st.checkbox('Inversion Arpeggio', key='include_inversions')
 
     # BPM 슬라이더 (더 작게 구현, 라벨 제거)
-    bpm = st.slider('BPM', 60, 240, key='bpm', format="%d", step=1, label_visibility='collapsed')
+    bpm = st.slider('BPM', 60, 240, st.session_state.bpm, format="%d", step=1, label_visibility='collapsed')
+    st.session_state.bpm = bpm
 
     # 코드 재생 버튼
     if st.button('Answer Generation', key='play_chord'):
@@ -226,7 +264,7 @@ with col2:
             frequencies = [note_to_freq(note) for note in chord_notes]
             audio_data = create_arpeggio_audio(frequencies, bpm)
         else:
-            audio_data = create_chord_audio(frequencies)
+            audio_data = create_chord_audio(frequencies, duration=2)  # 코드 지속 시간을 2초로 변경
         
         st.audio(audio_data, sample_rate=44100)
 
